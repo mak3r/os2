@@ -1,56 +1,67 @@
 FROM opensuse/leap:15.3 as base
-RUN sed -i -s 's/^# rpm.install.excludedocs/rpm.install.excludedocs/' /etc/zypp/zypp.conf && \
-    sed -i 's/download/provo-mirror/g' /etc/zypp/repos.d/*repo
+RUN sed -i -s 's/^# rpm.install.excludedocs/rpm.install.excludedocs/' /etc/zypp/zypp.conf
 RUN zypper ref
 
-FROM base AS build
-RUN zypper in -y squashfs xorriso go1.16 upx busybox-static curl tar git gzip
-RUN curl -Lo /usr/bin/luet https://github.com/mudler/luet/releases/download/0.20.10/luet-0.20.10-linux-$(go env GOARCH) && \
-    chmod +x /usr/bin/luet && \
-    upx /usr/bin/luet
-RUN curl -Lo /usr/bin/rancherd https://github.com/rancher/rancherd/releases/download/v0.0.1-alpha13/rancherd-$(go env GOARCH) && \
-    chmod +x /usr/bin/rancherd && \
-    upx /usr/bin/rancherd
-RUN curl -L https://get.helm.sh/helm-v3.7.1-linux-$(go env GOARCH).tar.gz | tar xzf - -C /usr/bin --strip-components=1 && \
-    upx /usr/bin/helm
-COPY go.mod go.sum /usr/src/
-COPY cmd /usr/src/cmd
-COPY pkg /usr/src/pkg
-COPY scripts /usr/src/scripts
-COPY chart /usr/src/chart
-ARG IMAGE_TAG=latest
-RUN TAG=${IMAGE_TAG} /usr/src/scripts/package-helm && \
-    cp /usr/src/dist/artifacts/rancheros-operator-*.tgz /usr/src/dist/rancheros-operator-chart.tgz
-RUN cd /usr/src && \
-    CGO_ENABLED=0 go build -ldflags "-extldflags -static -s" -o /usr/sbin/ros-operator ./cmd/ros-operator && \
-    upx /usr/sbin/ros-operator
-RUN cd /usr/src && \
-    CGO_ENABLED=0 go build -ldflags "-extldflags -static -s" -o /usr/sbin/ros-installer ./cmd/ros-installer && \
-    upx /usr/sbin/ros-installer
+# This target downloads the rancheros operator and makes it available to the framework target
+FROM alpine/helm:3.8.1 as helm
+ARG CHART_REPO=https://rancher-sandbox.github.io/rancheros-operator
+# ">0.0.0-0" means latest including pre-release versions
+ARG CHART_VERSION=">0.0.0-0"
+RUN helm repo add rancheros $CHART_REPO
+RUN mkdir /usr/chart
+RUN helm pull rancheros/rancheros-operator -d /usr/chart/ --version $CHART_VERSION
+# naming convention is discarded on building the framework image, look into this
+RUN mv /usr/chart/rancheros-operator-*.tgz /usr/chart/rancheros-operator-chart.tgz
 
-FROM scratch AS framework
-COPY --from=build /usr/bin/busybox-static /usr/bin/busybox
-COPY --from=build /usr/bin/rancherd /usr/bin/rancherd
-COPY --from=build /usr/bin/luet /usr/bin/luet
-COPY --from=build /usr/bin/helm /usr/bin/helm
-COPY --from=build /usr/src/dist/rancheros-operator-chart.tgz /usr/share/rancher/os2/
+# this target builds the ros-installer binary.
+FROM base AS ros-installer
+RUN zypper in -y openssl-devel gcc go1.16
+WORKDIR /src
+COPY go.mod go.sum /src/
+RUN go mod download
+COPY cmd /src/cmd
+COPY pkg /src/pkg
+RUN go build -o /usr/sbin/ros-installer ./cmd/ros-installer
+
+# This installs the cos packages that we need
+FROM quay.io/luet/base:0.22.7-1 AS framework-build
 COPY framework/files/etc/luet/luet.yaml /etc/luet/luet.yaml
-COPY --from=build /etc/ssl/certs /etc/ssl/certs
-
 ARG CACHEBUST
 ENV LUET_NOLOCK=true
-RUN ["luet", \
-    "install", "--no-spinner", "-d", "-y", \
-    "selinux/k3s", \
-    "selinux/rancher", \
-    "meta/cos-minimal", \
-    "utils/k9s", \
-    "utils/nerdctl"]
+ENV USER=root
 
-COPY --from=build /usr/sbin/ros-installer /usr/sbin/ros-installer
-COPY --from=build /usr/sbin/ros-operator /usr/sbin/ros-operator
+# We set the shell to /usr/bin/luet, as the base image doesn't have busybox, just luet
+# and certificates to be able to correctly handle TLS requests.
+SHELL ["/usr/bin/luet", "install", "-y", "--system-target", "/framework"]
+
+# Each package we want to install needs a new line here
+RUN meta/cos-core
+RUN cloud-config/livecd
+RUN cloud-config/recovery
+RUN cloud-config/network
+
+RUN meta/cos-verify
+RUN utils/k9s
+RUN utils/nerdctl
+RUN selinux/rancher
+RUN selinux/k3s
+RUN utils/rancherd@0.0.1-alpha13-3
+RUN utils/helm
+
+# This copies from other images the necessary files
+FROM scratch AS framework
+COPY --from=framework-build /framework/etc /etc
+COPY --from=framework-build /framework/lib /lib
+COPY --from=framework-build /framework/usr /usr
+COPY --from=framework-build /framework/system /system
+COPY --from=framework-build /framework/var/lib /var/lib
+COPY --from=ros-installer /usr/sbin/ros-installer /usr/sbin/ros-installer
+# This is used by framework/files/usr/sbin/ros-operator-install
+# name needs to be exactly rancheros-operator-chart.tgz at the path otherwise it wont load it
+COPY --from=helm /usr/chart/rancheros-operator-chart.tgz /usr/share/rancher/os2
+# This adds our local overrides into the framework image
+COPY framework/files/etc/luet/luet.yaml /etc/luet/luet.yaml
 COPY framework/files/ /
-RUN ["/usr/bin/busybox", "rm", "-rf", "/var", "/etc/ssl", "/usr/bin/busybox"]
 
 # Make OS image
 FROM base as os

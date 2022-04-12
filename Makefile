@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := package
-REPO?=rancher/os2
+REPO?=quay.io/costoolkit/os2
 TAG?=dev
 IMAGE=${REPO}:${TAG}
+ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 .dapper:
 	@echo Downloading dapper
@@ -28,6 +29,7 @@ build-framework:
 		--build-arg CACHEBUST=${CACHEBUST} \
 		--build-arg IMAGE_TAG=${TAG} \
 		--build-arg IMAGE_REPO=${REPO}-framework \
+		--target framework \
 		-t ${REPO}-framework:${TAG} .
 
 .PHONY: build
@@ -46,6 +48,7 @@ push:
 .PHONY: push
 push-framework: build-framework
 	docker push ${REPO}-framework:${TAG}
+
 
 .PHONY: iso
 iso:
@@ -98,3 +101,10 @@ all-amis: \
 	#ami-sa-east-1 \
 	#ami-us-east-1 \
 	#ami-us-east-2 \
+
+deps: 
+	go get github.com/onsi/ginkgo/v2/ginkgo
+	go get github.com/onsi/gomega/...
+
+integration-tests: 
+	$(MAKE) -C tests/ integration-tests

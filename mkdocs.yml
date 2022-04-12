@@ -4,8 +4,8 @@ site_url: https://rancher.github.io/os2
 
 # Repository
 repo_name: rancher/os2
-repo_url: https://github.com/rancher/os2
-edit_uri: https://github.com/rancher/os2/edit/master/docs/
+repo_url: https://github.com/rancher-sandbox/os2
+edit_uri: https://github.com/rancher-sandbox/os2/edit/master/docs/
 
 theme:
   name: material
@@ -27,7 +27,7 @@ theme:
 
 # Customization
 extra:
-  homepage: https://rancher.github.io/os2
+  homepage: https://rancher-sandbox.github.io/os2
 
 #google_analytics:
 plugins:
@@ -56,4 +56,3 @@ nav:
   - Reference:
     - configuration.md
     - versions.md
-  - operator.md

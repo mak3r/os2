@@ -1,4 +1,10 @@
 #!/bin/bash
+# Note: ros-image-build requires the input image to be pushed 
+# due to buildx usage.
+
+# Export  this here so users dont need to
+export DOCKER_BUILDKIT=1
+
 set -e
 
 build()
@@ -14,12 +20,11 @@ ARG IMAGE=rancher/os2:dev
 FROM ${IMAGE} AS os
 
 FROM ${IMAGE} AS tools
-RUN sed -i -s 's/^# rpm.install.excludedocs/rpm.install.excludedocs/' /etc/zypp/zypp.conf && \
-    sed -i 's/download/provo-mirror/g' /etc/zypp/repos.d/*repo
+RUN sed -i -s 's/^# rpm.install.excludedocs/rpm.install.excludedocs/' /etc/zypp/zypp.conf
 RUN zypper ref
 ENV LUET_NOLOCK=true
 # Copy luet from the official images
-RUN zypper in -y squashfs xorriso curl unzip git qemu-arm qemu-x86 qemu-tools tar pigz go1.16 qemu-uefi-aarch64
+RUN zypper in -y squashfs xorriso curl unzip git qemu-arm qemu-x86 qemu-tools tar pigz go1.16 qemu-uefi-aarch64 mtools
 RUN cd /usr/sbin && \
     rm packer && \
     SUFFIX=amd64 && \
@@ -28,7 +33,8 @@ RUN cd /usr/sbin && \
     unzip tmp && \
     rm tmp
 RUN cd /usr/src && \
-    git clone https://github.com/rancher-sandbox/cOS-toolkit
+    git clone https://github.com/rancher-sandbox/cOS-toolkit && \
+    cd cOS-toolkit && git checkout ${COS_VERSION} -b build
 RUN curl -Lo /usr/bin/luet https://github.com/mudler/luet/releases/download/0.20.10/luet-0.20.10-linux-$(go env GOARCH) && \
     chmod +x /usr/bin/luet
 RUN mkdir -p /iso/iso-overlay/boot/grub2 /etc/luet
@@ -257,6 +263,7 @@ VERSION=${IMAGE##*:}
 GIT_COMMIT=${GIT_COMMIT:-HEAD}
 NAME=${IMAGE%%:${VERSION}}
 NAME=${NAME//[^a-zA-Z0-9-@.\/_]/-}
+COS_VERSION=${COS_VERSION:-e95d49a66605d6622776391e95e175a80528e872}
 
 if [ "$1" == dockerfile ]; then
     dockerfile

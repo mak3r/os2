@@ -1,32 +1,61 @@
+/*
+Copyright © 2022 SUSE LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package install
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 
-	"github.com/rancher/os2/pkg/config"
-	"github.com/rancher/os2/pkg/questions"
+	"github.com/rancher-sandbox/os2/pkg/config"
+	"github.com/rancher-sandbox/os2/pkg/questions"
 	"sigs.k8s.io/yaml"
 )
 
-func Run(automatic bool, configFile string, powerOff bool, silent bool) error {
-	cfg, err := config.ReadConfig(configFile, automatic)
+func Run(automatic bool, configFile string, powerOff bool, reboot bool, noRebootAutomatic bool, silent bool, ejectCD bool) error {
+	cfg, err := config.ReadConfig(context.Background(), configFile, automatic)
 	if err != nil {
 		return err
 	}
 
+	if ejectCD {
+		cfg.RancherOS.Install.EjectCD = true
+	}
 	if powerOff {
 		cfg.RancherOS.Install.PowerOff = true
 	}
 
-	if automatic && !cfg.RancherOS.Install.Automatic {
-		return nil
+	if reboot {
+		cfg.RancherOS.Install.Reboot = true
 	}
 
 	if silent {
 		cfg.RancherOS.Install.Automatic = true
+	}
+
+	// If we set the installation to automatic, reboot is set to true unless we set no reboot
+	if automatic && !noRebootAutomatic {
+		cfg.RancherOS.Install.Reboot = true
+	}
+
+	if automatic && !cfg.RancherOS.Install.Automatic {
+		return nil
 	}
 
 	err = Ask(&cfg)
@@ -58,7 +87,6 @@ func runInstall(cfg config.Config, output string) error {
 		if err != nil || !val {
 			return err
 		}
-		cfg.Data = nil
 	}
 
 	if cfg.RancherOS.Install.ConfigURL == "" && !cfg.RancherOS.Install.Automatic {
@@ -106,9 +134,12 @@ func runInstall(cfg config.Config, output string) error {
 
 	printEnv(cfg)
 
-	cmd := exec.Command("cos-installer")
+	installerOpts := []string{"elemental", "install", "--no-verify"}
+
+	cmd := exec.Command("elemental")
 	cmd.Env = append(os.Environ(), ev...)
 	cmd.Stdout = os.Stdout
+	cmd.Args = installerOpts
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

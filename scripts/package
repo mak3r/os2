@@ -5,14 +5,15 @@ source $(dirname $0)/version
 
 cd $(dirname $0)/..
 
+if [ -n "$DOCKER_PASSWORD" ]; then
+    echo "Logging to registry $DOCKER_REGISTRY"
+    echo $DOCKER_PASSWORD | docker login -u "$DOCKER_USERNAME" --password-stdin $DOCKER_REGISTRY
+    PUSH=true
+fi
+
 export TAG
 make build
 make iso
-
-if [ -n "$DOCKER_PASSWORD" ]; then
-    docker login -u "$DOCKER_USERNAME" -p "${DOCKER_PASSWORD}"
-    PUSH=true
-fi
 
 if [ "$PUSH" = "true" ]; then
     make push
@@ -33,7 +34,7 @@ isoinfo -x /boot/kernel.xz -R -i build/output.iso > build/output-kernel
 isoinfo -x /boot/rootfs.xz -R -i build/output.iso > build/output-initrd
 
 
-RELEASE_URL=${RELEASE_URL:-https://github.com/rancher/os2/releases/download}
+RELEASE_URL=${RELEASE_URL:-https://github.com/rancher-sandbox/os2/releases/download}
 INSTALL_CFG=${RELEASE_URL}/${VERSION}/example-cloud-init
 PXE_ASSET_VERSION="\${version}-\${arch}"
 if [ "${TAG}" = "dev" ]; then
@@ -42,8 +43,6 @@ if [ "${TAG}" = "dev" ]; then
     VERSION=${TAG}
     PXE_ASSET_VERSION=${TAG}
 fi
-
-./scripts/package-helm
 
 cat > build/output.ipxe << EOF
 #!ipxe

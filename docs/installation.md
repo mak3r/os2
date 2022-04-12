@@ -18,7 +18,7 @@ The installation configuration should be hosted on an HTTP or TFTP server. A sim
 ### Kernel Command Line
 
 Install directives can be set from the kernel command line using a period (.) seperated key structure such as
-`rancheros.install.configurl`.  They kernel command line keys are case-insensitive.
+`rancheros.install.config_url`.  They kernel command line keys are case-insensitive.
 
 ### Reference
 
@@ -74,12 +74,12 @@ ros-installer -config-file ${LOCATION}
 
 ### Interactive
 
-`ros-installer` can also be ran without any arguments to allow you to install a simple vanilla image with a
+`ros-installer` can also be run without any arguments to allow you to install a simple vanilla image with a
 root password set.
 
 ## iPXE Installation
 
-Download the latest ipxe script from [current release](https://github.com/rancher/os2/releases/latest)
+Download the latest ipxe script from [current release](https://github.com/rancher-sandbox/os2/releases/latest)
 
 ## Partition Table
 

@@ -1,3 +1,19 @@
+/*
+Copyright © 2022 SUSE LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package config
 
 type RancherOS struct {
@@ -10,7 +26,9 @@ type Install struct {
 	Device             string `json:"device,omitempty"`
 	ConfigURL          string `json:"configUrl,omitempty"`
 	ISOURL             string `json:"isoUrl,omitempty"`
+	ContainerImage     string `json:"containerImage,omitempty"`
 	PowerOff           bool   `json:"powerOff,omitempty"`
+	Reboot             bool   `json:"reboot,omitempty"`
 	NoFormat           bool   `json:"noFormat,omitempty"`
 	Debug              bool   `json:"debug,omitempty"`
 	TTY                string `json:"tty,omitempty"`
@@ -20,10 +38,11 @@ type Install struct {
 	Password           string `json:"password,omitempty"`
 	RegistrationURL    string `json:"registrationUrl,omitempty"`
 	RegistrationCACert string `json:"registrationCaCert,omitempty"`
+	EjectCD            bool   `json:"ejectCD,omitempty"`
 }
 
 type Config struct {
-	SSHAuthorizedKeys []string               `json:"sshAuthorizedKeys,omitempty"`
+	SSHAuthorizedKeys []string               `json:"ssh_authorized_keys,omitempty"`
 	RancherOS         RancherOS              `json:"rancheros,omitempty"`
 	Data              map[string]interface{} `json:"-"`
 }
